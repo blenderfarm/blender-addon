@@ -1,0 +1,3 @@
+[submodule "render_blenderfarm/blenderfarm"]
+	path = render_blenderfarm/blenderfarm
+	url = https://github.com/blenderfarm/core.git
