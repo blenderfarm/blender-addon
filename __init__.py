@@ -4,8 +4,6 @@ import bpy # pylint: disable=import-error
 
 from . import blenderfarm
 
-print(dir(blenderfarm))
-
 bl_info = { # pylint: disable=invalid-name
     'name': 'Blenderfarm client',
     'description': 'Blenderfarm client addon',
@@ -386,12 +384,11 @@ def register():
     for _class in CLASSES_TO_REGISTER:
         bpy.utils.register_class(_class)
 
-
 def unregister():
     """Unregisters the Blenderfarm Node addon."""
 
     # First, cancel any operations.
-    bpy.ops.blenderfarm.node_task_cancel()
+    #bpy.ops.blenderfarm.node_task_cancel()
 
     for _class in CLASSES_TO_REGISTER:
         bpy.utils.unregister_class(_class)

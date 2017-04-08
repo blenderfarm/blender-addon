@@ -1,6 +1,9 @@
 {
-  "files": ["**/*.py"],
-  "ignore": ["blenderfarm/**/*.py"],
+  "files": [
+    "**/*.py",
+    "**/*.sh"
+  ],
+  "ignore": ["blenderfarm/**/*.py", "docs/**/*"],
   "readme": "README.md",
   "name": "Blenderfarm",
   "output": "docs",
@@ -8,5 +11,21 @@
   "links": {
     "github": "https://github.com/zlsa/blenderfarm/"
   },
-  "owners": "ZLSA Design"
+  "owners": "ZLSA Design",
+  "languages": {
+    "Shell": {
+      "extensions": ["sh"],
+      "name": {
+        "color": "shell",
+        "hljs": "bash",
+        "human": "Shell",
+        "abbr": "SH"
+      },
+      "single": [
+        "#"
+      ],
+      "multi": [
+      ]
+    }
+  }
 }

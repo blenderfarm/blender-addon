@@ -1,21 +1,21 @@
 <!doctype html>
 <html>
   <head>
-    <title>README.md</title>
+    <title>run-pylint.sh</title>
     <link rel="stylesheet" href="./../public/style.css" />
     <link rel="icon" type="image/png" href="./../public/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="./../public/jquery.min.js"></script>
     <script src="./../public/script.js"></script>
   </head>
-  <body class="markdown">
+  <body class="code">
     
     <main id="sections">
 
       <!-- The header -->
 
-      <section class="section header files-hidden markdown" id="header">
         
+      <section class="section header files-hidden" id="header">
 
         <aside class="comment">
 
@@ -27,7 +27,7 @@
               <a id="project-overview" href="./.." title="Project Overview">Blenderfarm<span id="version">0.1.0</span></a>
               
               <div class="files-menu">
-                <span id="filename" title="README.md">README.md</span>
+                <span id="filename" title="run-pylint.sh">run-pylint.sh</span>
                 
               
                 <ul class="files hidable">
@@ -71,19 +71,6 @@
 </a>
 
 </li>
-  
-<li class="file">
-  
-<a href="../run-pylint.sh" title="run-pylint.sh">
-    
-<span class="language" style="background-color: #89e051">SH</span>
-
-
-<span class="filename">run-pylint.sh</span>
-
-</a>
-
-</li>
 
                   
                 </ul>
@@ -99,14 +86,47 @@
             
         </aside>
 
-        <div class="code">
-          <div class="markdown"><h1 id="blender-addon-for-blenderfarm">Blender Addon for Blenderfarm</h1></div>
-        </div>
         
+        <div class="code empty">
+        </div>
 
       </section>
 
       <!-- The main code section -->
+      
+      <section class="section">
+
+  
+  <aside class="comment empty">
+    <div class="text markdown"></div>
+  </aside>
+
+  <div class="code">
+    <pre><code><span class="hljs-meta">#!/bin/sh</span></code></pre>
+  </div>
+
+  
+</section>
+<section class="section">
+
+  <aside class="comment">
+    <div class="text markdown"><p>Runs <code>pylint</code> on all Python files.</p>
+</div>
+  </aside>
+  
+
+  <div class="code">
+    <pre><code><span class="hljs-built_in">command</span> -v pylint &gt;/dev/null 2&gt;&amp;1 || { <span class="hljs-built_in">echo</span> &gt;&amp;2 <span class="hljs-string">"Running 'pylint' requires it to be installed."</span>; <span class="hljs-built_in">exit</span> 1; }
+
+<span class="hljs-built_in">echo</span> <span class="hljs-string">"Running pylint..."</span>
+
+find . -iname <span class="hljs-string">"*.py"</span> -not -path <span class="hljs-string">"./docs/*"</span> |xargs pylint --rcfile pylintrc</code></pre>
+  </div>
+
+  
+</section>
+
+      
       
       <section class="section footer" id="footer">
         

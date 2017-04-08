@@ -35,12 +35,12 @@
                   
 <li class="file">
   
-<a href="../docs/blenderfarm/client.py" title="docs/blenderfarm/client.py">
+<a href="../build-documentation.sh" title="build-documentation.sh">
     
-<span class="language" style="background-color: #3572A5">py</span>
+<span class="language" style="background-color: #89e051">SH</span>
 
 
-<span class="filename">docs/blenderfarm/client.py</span>
+<span class="filename">build-documentation.sh</span>
 
 </a>
 
@@ -48,12 +48,12 @@
   
 <li class="file">
   
-<a href="../docs/blenderfarm/job.py" title="docs/blenderfarm/job.py">
+<a href="../bundle-addon.sh" title="bundle-addon.sh">
     
-<span class="language" style="background-color: #3572A5">py</span>
+<span class="language" style="background-color: #89e051">SH</span>
 
 
-<span class="filename">docs/blenderfarm/job.py</span>
+<span class="filename">bundle-addon.sh</span>
 
 </a>
 
@@ -61,51 +61,12 @@
   
 <li class="file">
   
-<a href="../docs/blenderfarm/node.py" title="docs/blenderfarm/node.py">
+<a href="../run-pylint.sh" title="run-pylint.sh">
     
-<span class="language" style="background-color: #3572A5">py</span>
+<span class="language" style="background-color: #89e051">SH</span>
 
 
-<span class="filename">docs/blenderfarm/node.py</span>
-
-</a>
-
-</li>
-  
-<li class="file">
-  
-<a href="../docs/blenderfarm/serializable.py" title="docs/blenderfarm/serializable.py">
-    
-<span class="language" style="background-color: #3572A5">py</span>
-
-
-<span class="filename">docs/blenderfarm/serializable.py</span>
-
-</a>
-
-</li>
-  
-<li class="file">
-  
-<a href="../docs/blenderfarm/server.py" title="docs/blenderfarm/server.py">
-    
-<span class="language" style="background-color: #3572A5">py</span>
-
-
-<span class="filename">docs/blenderfarm/server.py</span>
-
-</a>
-
-</li>
-  
-<li class="file">
-  
-<a href="../docs/blenderfarm/task.py" title="docs/blenderfarm/task.py">
-    
-<span class="language" style="background-color: #3572A5">py</span>
-
-
-<span class="filename">docs/blenderfarm/task.py</span>
+<span class="filename">run-pylint.sh</span>
 
 </a>
 
@@ -143,7 +104,7 @@
 
   <div class="code">
     <pre><code><span class="hljs-keyword">import</span> bpy <span class="hljs-comment"># pylint: disable=import-error</span>
-    
+
 <span class="hljs-keyword">from</span> . <span class="hljs-keyword">import</span> blenderfarm
 
 bl_info = { <span class="hljs-comment"># pylint: disable=invalid-name</span>
@@ -703,7 +664,7 @@ where server/credentials are stored.</p>
 
         connect_disconnect_button = control_row.column()
         connect_disconnect_button.scale_y = <span class="hljs-number">2</span>
-        
+
         <span class="hljs-keyword">if</span> client.is_connected():
             connect_disconnect_button.operator(<span class="hljs-string">'blenderfarm.disconnect'</span>, <span class="hljs-string">'Disconnect'</span>)
         <span class="hljs-keyword">else</span>:
@@ -774,9 +735,9 @@ where server/credentials are stored.</p>
 
         <span class="hljs-keyword">if</span> task:
             task_id = task.task_id
-        
+
         self.add_row(box, <span class="hljs-string">'Task ID'</span>, task_id)
-        
+
 <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">BlenderfarmNodePanel</span><span class="hljs-params">(bpy.types.Panel)</span>:</span></code></pre>
   </div>
 
@@ -855,7 +816,7 @@ where server/credentials are stored.</p>
 
   <div class="code">
     <pre><code>        layout = self.layout
-        
+
         task_buttons = layout.column(align=<span class="hljs-keyword">True</span>)
         task_buttons.scale_y = <span class="hljs-number">1</span>
 
@@ -863,12 +824,12 @@ where server/credentials are stored.</p>
             task_buttons.operator(<span class="hljs-string">'blenderfarm.node_task_cancel'</span>, <span class="hljs-string">'Cancel'</span>, icon=<span class="hljs-string">'CANCEL'</span>)
         <span class="hljs-keyword">else</span>:
             task_buttons.operator(<span class="hljs-string">'blenderfarm.node_task_perform'</span>, <span class="hljs-string">'Run Task'</span>, icon=<span class="hljs-string">'PLAY'</span>)
-            
+
             <span class="hljs-keyword">if</span> <span class="hljs-keyword">not</span> client.is_connected():
                 task_buttons.enabled = <span class="hljs-keyword">False</span>
 
         task_buttons.prop(prefs, <span class="hljs-string">'node_task_single'</span>)
-        
+
 
 <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">BlenderfarmSettingsPanel</span><span class="hljs-params">(bpy.types.Panel)</span>:</span></code></pre>
   </div>
@@ -1011,7 +972,7 @@ preferences, yes I know.)</p>
     <pre><code>        row = get_new_table_row(layout, align=<span class="hljs-keyword">False</span>)
         row.prop(prefs, <span class="hljs-string">'developer_mode'</span>)
         row.operator(<span class="hljs-string">'wm.save_userpref'</span>, text=<span class="hljs-string">'Save Settings'</span>)
-        
+
 CLASSES_TO_REGISTER = [
     BlenderfarmConnect,
     BlenderfarmDisconnect,
@@ -1043,7 +1004,6 @@ CLASSES_TO_REGISTER = [
     <pre><code>    <span class="hljs-keyword">for</span> _class <span class="hljs-keyword">in</span> CLASSES_TO_REGISTER:
         bpy.utils.register_class(_class)
 
-        
 <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">unregister</span><span class="hljs-params">()</span>:</span></code></pre>
   </div>
 
@@ -1072,7 +1032,7 @@ CLASSES_TO_REGISTER = [
   
 
   <div class="code">
-    <pre><code>    bpy.ops.blenderfarm.node_task_cancel()
+    <pre><code>    <span class="hljs-comment">#bpy.ops.blenderfarm.node_task_cancel()</span>
 
     <span class="hljs-keyword">for</span> _class <span class="hljs-keyword">in</span> CLASSES_TO_REGISTER:
         bpy.utils.unregister_class(_class)</code></pre>
@@ -1090,7 +1050,7 @@ CLASSES_TO_REGISTER = [
         </aside>
 
         <div class="code">
-          <span class="content page-generation-time">Generated Sat, 08 Apr 2017 20:12:20 GMT</span>
+          <span class="content page-generation-time">Generated Sat, 08 Apr 2017 20:50:39 GMT</span>
         </div>
         
       </section>
