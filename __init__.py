@@ -1,8 +1,10 @@
 """Blenderfarm addon for Blender 2.78 and up."""
 
 import bpy # pylint: disable=import-error
-    
-from ... import blenderfarm
+
+from . import blenderfarm
+
+print(dir(blenderfarm))
 
 bl_info = { # pylint: disable=invalid-name
     'name': 'Blenderfarm client',
@@ -232,7 +234,7 @@ class BlenderfarmControlPanel(bpy.types.Panel):
 
         connect_disconnect_button = control_row.column()
         connect_disconnect_button.scale_y = 2
-        
+
         if client.is_connected():
             connect_disconnect_button.operator('blenderfarm.disconnect', 'Disconnect')
         else:
@@ -270,9 +272,9 @@ class BlenderfarmControlPanel(bpy.types.Panel):
 
         if task:
             task_id = task.task_id
-        
+
         self.add_row(box, 'Task ID', task_id)
-        
+
 class BlenderfarmNodePanel(bpy.types.Panel):
     """Draws the UI in the properties panel (Properties/Render)."""
 
@@ -294,7 +296,7 @@ class BlenderfarmNodePanel(bpy.types.Panel):
 
         # I don't want to type `self.layout` every time.
         layout = self.layout
-        
+
         task_buttons = layout.column(align=True)
         task_buttons.scale_y = 1
 
@@ -302,12 +304,12 @@ class BlenderfarmNodePanel(bpy.types.Panel):
             task_buttons.operator('blenderfarm.node_task_cancel', 'Cancel', icon='CANCEL')
         else:
             task_buttons.operator('blenderfarm.node_task_perform', 'Run Task', icon='PLAY')
-            
+
             if not client.is_connected():
                 task_buttons.enabled = False
 
         task_buttons.prop(prefs, 'node_task_single')
-        
+
 
 class BlenderfarmSettingsPanel(bpy.types.Panel):
     """Draws the "Blenderfarm Settings" UI in the properties panel (Properties/Render)."""
@@ -363,7 +365,7 @@ class BlenderfarmSettingsPanel(bpy.types.Panel):
         row = get_new_table_row(layout, align=False)
         row.prop(prefs, 'developer_mode')
         row.operator('wm.save_userpref', text='Save Settings')
-        
+
 CLASSES_TO_REGISTER = [
     BlenderfarmConnect,
     BlenderfarmDisconnect,
@@ -384,7 +386,7 @@ def register():
     for _class in CLASSES_TO_REGISTER:
         bpy.utils.register_class(_class)
 
-        
+
 def unregister():
     """Unregisters the Blenderfarm Node addon."""
 
