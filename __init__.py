@@ -1,3 +1,5 @@
+# pylint: disable=invalid-name
+
 """Blenderfarm addon for Blender 2.78 and up."""
 
 import bpy # pylint: disable=import-error
@@ -19,6 +21,8 @@ bl_info = { # pylint: disable=invalid-name
     'category': 'Render'
 }
 
+CLIENT = blenderfarm.client.Client()
+
 class BlenderfarmAddonPreferences(bpy.types.AddonPreferences):
     """Addon preferences (persistent across all of Blender.)"""
 
@@ -27,16 +31,24 @@ class BlenderfarmAddonPreferences(bpy.types.AddonPreferences):
     # instead of a directory, we'd use `__name__` instead.)
     bl_idname = __package__
 
-    # Blenderfarm server information (hostname/port)
+    # Blenderfarm server information (host/port)
 
-    server_hostname = bpy.props.StringProperty(
-        name='Hostname',
+    server_host = bpy.props.StringProperty(
+        name='Host',
+        description='The host of the Blenderfarm server',
         default='localhost'
     )
 
     server_port = bpy.props.IntProperty(
         name='Port',
+        description='The port that the Blenderfarm server is listening on',
         default=44363
+    )
+
+    server_insecure = bpy.props.BoolProperty(
+        name='Use HTTP',
+        description='Use HTTP (insecure!) instead of the default HTTPS',
+        default=False
     )
 
     # Blenderfarm user credentials (username/key)
@@ -72,7 +84,7 @@ class BlenderfarmAddonPreferences(bpy.types.AddonPreferences):
     )
 
     developer_mode = bpy.props.BoolProperty(
-        name='Debug',
+        name='Show Developer Information',
         description='Show debugging information',
         default=False
     )
@@ -84,34 +96,16 @@ class BlenderfarmAddonPreferences(bpy.types.AddonPreferences):
         user_preferences = context.user_preferences
         return user_preferences.addons[__package__].preferences
 
-    def get_client(self):
-        """Returns our client instance. Guaranteed to return a `Client`."""
+    def get_host_port(self):
+        """Returns the user-facing `host:port` string."""
 
-        if 'client' not in locals():
-            self.build_client()
+        return self.server_host + ':' + str(self.server_port)
 
-        return self.client
-
-    def build_client(self):
-        """Creates a new client; if one already exists, end it cleanly."""
-
-        if 'client' in locals():
-            self.client.disconnect() # pylint: disable=access-member-before-definition
-
-        # pylint: disable=attribute-defined-outside-init
-        self.client = blenderfarm.client.Client(self.server_hostname, self.server_port,
-                                                self.credentials_username, self.credentials_key)
-
-        return self.client
-
-    def get_hostname_port(self):
-        """Returns the user-facing `hostname:port` string."""
-
-        return self.server_hostname + ':' + str(self.server_port)
-
-    def draw(self, context):
+    # Disable user preferences settings
+    
+    def draw_disabled(self, context):
         """Draw the preferences panel (this is in Blender's user preferences and the addon info box must be expanded for this to be visible.)"""
-
+        
         # Disable pylint warning.
         _ = context
 
@@ -120,12 +114,12 @@ class BlenderfarmAddonPreferences(bpy.types.AddonPreferences):
         # Create a 50/50 horizontal split for `[ server info | user credentials ]`.
         main_split = layout.split(percentage=0.5)
 
-        # Left column; server info (hostname/port).
+        # Left column; server info (host/port).
         server_info = main_split.column(align=True)
 
         server_info.label(text='Server')
 
-        server_info.prop(self, 'server_hostname', text='')
+        server_info.prop(self, 'server_host', text='')
         server_info.prop(self, 'server_port')
 
         # Right column; user credentials (username/key).
@@ -152,11 +146,21 @@ class BlenderfarmConnect(bpy.types.Operator):
     bl_label = 'Connect to server'
 
     def execute(self, context): # pylint: disable=missing-docstring,no-self-use
-        client = BlenderfarmAddonPreferences.get(context).get_client()
-        client.connect()
+        global CLIENT
+        
+        prefs = BlenderfarmAddonPreferences.get(context)
 
-        if not client.is_connected():
-            self.report({'ERROR'}, 'Could not connect to ' + client.get_hostname_port())
+        CLIENT.set_host_port(prefs.server_host, prefs.server_port)
+        CLIENT.set_insecure(prefs.server_insecure)
+
+        try:
+            CLIENT.connect()
+        except blenderfarm.client.Error as error:
+            self.report({'ERROR'}, str(error))
+            return {'CANCELLED'}
+
+        if not CLIENT.is_connected():
+            self.report({'ERROR'}, 'Could not connect to ' + CLIENT.get_host_port())
 
         return {'FINISHED'}
 
@@ -168,8 +172,11 @@ class BlenderfarmDisconnect(bpy.types.Operator):
     bl_label = 'Disconnect from server'
 
     def execute(self, context): # pylint: disable=missing-docstring,no-self-use
-        client = BlenderfarmAddonPreferences.get(context).get_client()
-        client.disconnect()
+        global CLIENT
+
+        _ = context
+        
+        CLIENT.disconnect()
 
         return {'FINISHED'}
 
@@ -208,6 +215,8 @@ class BlenderfarmControlPanel(bpy.types.Panel):
 
     @staticmethod
     def add_row(table, key, value, percentage=0.4):
+        """Adds a left/right row to the table."""
+        
         row = table.split(percentage=percentage)
 
         row.label(key + ':')
@@ -216,12 +225,13 @@ class BlenderfarmControlPanel(bpy.types.Panel):
     def draw(self, context):
         """Draws the panel in the render view."""
 
+        global CLIENT
+        
         # Get the global instance of the preferences object. This is
         # where server/credentials are stored.
         prefs = BlenderfarmAddonPreferences.get(context)
 
         # Get the Blenderfarm client.
-        client = prefs.get_client()
 
         # I don't want to type `self.layout` every time.
         layout = self.layout
@@ -233,7 +243,7 @@ class BlenderfarmControlPanel(bpy.types.Panel):
         connect_disconnect_button = control_row.column()
         connect_disconnect_button.scale_y = 2
 
-        if client.is_connected():
+        if CLIENT.is_connected():
             connect_disconnect_button.operator('blenderfarm.disconnect', 'Disconnect')
         else:
             connect_disconnect_button.operator('blenderfarm.connect', 'Connect')
@@ -242,8 +252,10 @@ class BlenderfarmControlPanel(bpy.types.Panel):
             self.draw_developer_info(context, layout)
 
     def draw_developer_info(self, context, layout):
+        """Draws the developer information box in `layout`."""
+        global CLIENT
+        
         prefs = BlenderfarmAddonPreferences.get(context)
-        client = prefs.get_client()
 
         column = layout.column_flow(columns=1)
 
@@ -251,27 +263,30 @@ class BlenderfarmControlPanel(bpy.types.Panel):
         box = column.box()
 
         # Server name row
-        self.add_row(box, 'Connected', str(client.is_connected()))
+        self.add_row(box, 'Connected', str(CLIENT.is_connected()))
         self.add_row(box, 'Client ID', prefs.client_id or '<not connected>')
 
         self.draw_task_info(context, column)
 
     def draw_task_info(self, context, layout):
-        prefs = BlenderfarmAddonPreferences.get(context)
-        client = prefs.get_client()
+        """Draws information about the current task."""
+        global CLIENT
 
-        # Tasks list box
-        box = layout.box()
+        _ = context
 
-        self.add_row(box, 'Performing task', str(client.is_performing_task()))
+        if CLIENT.is_performing_task():
+            # Tasks list box
+            box = layout.box()
 
-        task = client.get_task()
-        task_id = '<not perfoming task>'
+            self.add_row(box, 'Performing task', str(CLIENT.is_performing_task()))
 
-        if task:
-            task_id = task.task_id
+            task = CLIENT.get_task()
+            task_id = '<not perfoming task>'
 
-        self.add_row(box, 'Task ID', task_id)
+            if task:
+                task_id = task.task_id
+
+            self.add_row(box, 'Task ID', task_id)
 
 class BlenderfarmNodePanel(bpy.types.Panel):
     """Draws the UI in the properties panel (Properties/Render)."""
@@ -284,13 +299,12 @@ class BlenderfarmNodePanel(bpy.types.Panel):
 
     def draw(self, context):
         """Draws the panel in the render view."""
+        
+        global CLIENT
 
         # Get the global instance of the preferences object. This is
         # where server/credentials are stored.
         prefs = BlenderfarmAddonPreferences.get(context)
-
-        # Get the Blenderfarm client.
-        client = prefs.get_client()
 
         # I don't want to type `self.layout` every time.
         layout = self.layout
@@ -298,12 +312,12 @@ class BlenderfarmNodePanel(bpy.types.Panel):
         task_buttons = layout.column(align=True)
         task_buttons.scale_y = 1
 
-        if client.is_performing_task():
+        if CLIENT.is_performing_task():
             task_buttons.operator('blenderfarm.node_task_cancel', 'Cancel', icon='CANCEL')
         else:
             task_buttons.operator('blenderfarm.node_task_perform', 'Run Task', icon='PLAY')
 
-            if not client.is_connected():
+            if not CLIENT.is_connected():
                 task_buttons.enabled = False
 
         task_buttons.prop(prefs, 'node_task_single')
@@ -321,11 +335,11 @@ class BlenderfarmSettingsPanel(bpy.types.Panel):
     def draw(self, context):
         """Draws the panel in the render view."""
 
+        global CLIENT
+
         # Get the global instance of the preferences object. This is
         # where server/credentials are stored.
         prefs = BlenderfarmAddonPreferences.get(context)
-
-        client = prefs.get_client()
 
         # I don't want to type `self.layout` every time.
         layout = self.layout
@@ -336,9 +350,10 @@ class BlenderfarmSettingsPanel(bpy.types.Panel):
         status_box = layout.column()
 
         def get_new_table_row(table, percentage=0.2, align=False):
+            """Returns a new row for `table`."""
             return table.split(percentage=percentage, align=align)
 
-        if client.is_connected():
+        if CLIENT.is_connected():
             status_box.enabled = False
 
         # ### Server name row
@@ -347,7 +362,7 @@ class BlenderfarmSettingsPanel(bpy.types.Panel):
         server_row.label('Server:')
 
         row = server_row.split(percentage=0.6, align=True)
-        row.prop(prefs, 'server_hostname', text='')
+        row.prop(prefs, 'server_host', text='')
         row.prop(prefs, 'server_port', text='')
 
         # ### Credentials row
@@ -361,9 +376,16 @@ class BlenderfarmSettingsPanel(bpy.types.Panel):
 
         # And now for a row at the bottom
         row = get_new_table_row(layout, align=False)
-        row.prop(prefs, 'developer_mode')
+        row.prop(prefs, 'server_insecure', text='Use HTTP')
+
         row.operator('wm.save_userpref', text='Save Settings')
 
+        if CLIENT.is_connected():
+            row.enabled = False
+            
+        row = layout.row()
+        row.prop(prefs, 'developer_mode')
+        
 CLASSES_TO_REGISTER = [
     BlenderfarmConnect,
     BlenderfarmDisconnect,
