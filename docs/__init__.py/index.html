@@ -117,7 +117,9 @@
   
 
   <div class="code">
-    <pre><code><span class="hljs-keyword">import</span> bpy <span class="hljs-comment"># pylint: disable=import-error</span>
+    <pre><code><span class="hljs-keyword">import</span> math
+
+<span class="hljs-keyword">import</span> bpy <span class="hljs-comment"># pylint: disable=import-error</span>
 
 <span class="hljs-keyword">from</span> . <span class="hljs-keyword">import</span> blenderfarm
 
@@ -206,10 +208,14 @@ instead of a directory, we&#39;d use <code>__name__</code> instead.)</p>
         default=<span class="hljs-number">44363</span>
     )
 
-    server_insecure = bpy.props.BoolProperty(
-        name=<span class="hljs-string">'Use HTTP'</span>,
-        description=<span class="hljs-string">'Use HTTP (insecure!) instead of the default HTTPS'</span>,
-        default=<span class="hljs-keyword">False</span>
+    server_security = bpy.props.EnumProperty(
+        name=<span class="hljs-string">'Security'</span>,
+        description=<span class="hljs-string">''</span>,
+        items=[
+            (<span class="hljs-string">'https'</span>, <span class="hljs-string">'HTTPS'</span>, <span class="hljs-string">'Use secure HTTPS connection'</span>),
+            (<span class="hljs-string">'http'</span>, <span class="hljs-string">'HTTP'</span>, <span class="hljs-string">'Use an insecure HTTP connection'</span>)
+        ],
+        default=<span class="hljs-string">'https'</span>
     )</code></pre>
   </div>
 
@@ -269,12 +275,31 @@ completed.</p>
 
   <div class="code">
     <pre><code>    node_task_single = bpy.props.BoolProperty(
-        name=<span class="hljs-string">'Perform single task'</span>,
-        description=<span class="hljs-string">'Disconnect from server after task is complete.'</span>,
+        name=<span class="hljs-string">'Stop when complete'</span>,
+        description=<span class="hljs-string">'Stop processing new tasks after current task is complete.'</span>,
         default=<span class="hljs-keyword">False</span>
     )
 
-    developer_mode = bpy.props.BoolProperty(
+    node_task_autostart = bpy.props.BoolProperty(
+        name=<span class="hljs-string">'Autostart on connection'</span>,
+        description=<span class="hljs-string">'Automatically start rendering when connecting to a server'</span>,
+        default=<span class="hljs-keyword">False</span>
+    )</code></pre>
+  </div>
+
+  
+</section>
+<section class="section">
+
+  <aside class="comment">
+    <div class="text markdown"><p>Developer mode. Shows more information in the &quot;Blenderfarm
+Control&quot; panel.</p>
+</div>
+  </aside>
+  
+
+  <div class="code">
+    <pre><code>    developer_mode = bpy.props.BoolProperty(
         name=<span class="hljs-string">'Show Developer Information'</span>,
         description=<span class="hljs-string">'Show debugging information'</span>,
         default=<span class="hljs-keyword">False</span>
@@ -462,11 +487,11 @@ completed.</p>
         prefs = BlenderfarmAddonPreferences.get(context)
 
         CLIENT.set_host_port(prefs.server_host, prefs.server_port)
-        CLIENT.set_insecure(prefs.server_insecure)
+        CLIENT.set_insecure(prefs.server_security == <span class="hljs-string">'http'</span>)
 
         <span class="hljs-keyword">try</span>:
-            CLIENT.connect()
-        <span class="hljs-keyword">except</span> blenderfarm.client.Error <span class="hljs-keyword">as</span> error:
+            CLIENT.connect(prefs.credentials_username, prefs.credentials_key)
+        <span class="hljs-keyword">except</span> blenderfarm.error.Error <span class="hljs-keyword">as</span> error:
             self.report({<span class="hljs-string">'ERROR'</span>}, str(error))
             <span class="hljs-keyword">return</span> {<span class="hljs-string">'CANCELLED'</span>}
 
@@ -728,7 +753,44 @@ where server/credentials are stored.</p>
   
 
   <div class="code">
-    <pre><code>        self.add_row(box, <span class="hljs-string">'Connected'</span>, str(CLIENT.is_connected()))
+    <pre><code>        version = CLIENT.get_server_info(<span class="hljs-string">'version'</span>)
+        uptime = CLIENT.get_server_info(<span class="hljs-string">'uptime'</span>)
+
+        <span class="hljs-keyword">if</span> uptime:</code></pre>
+  </div>
+
+  
+</section>
+<section class="section">
+
+  <aside class="comment">
+    <div class="text markdown"><p>pylint: disable=bad-whitespace</p>
+</div>
+  </aside>
+  
+
+  <div class="code">
+    <pre><code>            seconds = math.floor(uptime % <span class="hljs-number">60</span>)
+            minutes = math.floor(uptime / <span class="hljs-number">60</span>)
+            hours   = math.floor(uptime / <span class="hljs-number">60</span> / <span class="hljs-number">60</span>)
+            days    = math.floor(uptime / <span class="hljs-number">60</span> / <span class="hljs-number">60</span> / <span class="hljs-number">24</span>)
+            years   = math.floor(uptime / <span class="hljs-number">60</span> / <span class="hljs-number">60</span> / <span class="hljs-number">24</span> / <span class="hljs-number">365</span>)
+
+            days -= years * <span class="hljs-number">365</span>
+            
+            uptime = str(minutes) + <span class="hljs-string">'m '</span> + str(seconds) + <span class="hljs-string">'s'</span>
+
+            <span class="hljs-keyword">if</span> hours:
+                uptime = str(hours) + <span class="hljs-string">'h '</span> + uptime
+                
+            <span class="hljs-keyword">if</span> days:
+                uptime = str(days) + <span class="hljs-string">'d '</span> + uptime
+        
+            <span class="hljs-keyword">if</span> years:
+                uptime = str(years) + <span class="hljs-string">'y '</span> + uptime
+        
+        self.add_row(box, <span class="hljs-string">'Server Version'</span>, version <span class="hljs-keyword">or</span> <span class="hljs-string">'&lt;not connected&gt;'</span>)
+        self.add_row(box, <span class="hljs-string">'Server Uptime'</span>, uptime <span class="hljs-keyword">or</span> <span class="hljs-string">'&lt;not connected&gt;'</span>)
         self.add_row(box, <span class="hljs-string">'Client ID'</span>, prefs.client_id <span class="hljs-keyword">or</span> <span class="hljs-string">'&lt;not connected&gt;'</span>)
 
         self.draw_task_info(context, column)
@@ -853,7 +915,10 @@ where server/credentials are stored.</p>
             <span class="hljs-keyword">if</span> <span class="hljs-keyword">not</span> CLIENT.is_connected():
                 task_buttons.enabled = <span class="hljs-keyword">False</span>
 
-        task_buttons.prop(prefs, <span class="hljs-string">'node_task_single'</span>)
+        row = layout.row()
+        
+        row.prop(prefs, <span class="hljs-string">'node_task_single'</span>)
+        row.prop(prefs, <span class="hljs-string">'node_task_autostart'</span>)
 
 
 <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">BlenderfarmSettingsPanel</span><span class="hljs-params">(bpy.types.Panel)</span>:</span></code></pre>
@@ -970,9 +1035,12 @@ preferences, yes I know.)</p>
 
         server_row.label(<span class="hljs-string">'Server:'</span>)
 
-        row = server_row.split(percentage=<span class="hljs-number">0.6</span>, align=<span class="hljs-keyword">True</span>)
+        row = server_row.split(percentage=<span class="hljs-number">0.5</span>, align=<span class="hljs-keyword">True</span>)
         row.prop(prefs, <span class="hljs-string">'server_host'</span>, text=<span class="hljs-string">''</span>)
-        row.prop(prefs, <span class="hljs-string">'server_port'</span>, text=<span class="hljs-string">''</span>)</code></pre>
+        
+        misc_row = row.split(percentage=<span class="hljs-number">0.6</span>, align=<span class="hljs-keyword">True</span>)
+        misc_row.prop(prefs, <span class="hljs-string">'server_port'</span>, text=<span class="hljs-string">''</span>)
+        misc_row.prop(prefs, <span class="hljs-string">'server_security'</span>, text=<span class="hljs-string">''</span>)</code></pre>
   </div>
 
   
@@ -989,7 +1057,7 @@ preferences, yes I know.)</p>
 
         credentials_row.label(<span class="hljs-string">'Credentials:'</span>)
 
-        row = credentials_row.split(percentage=<span class="hljs-number">0.6</span>, align=<span class="hljs-keyword">True</span>)
+        row = credentials_row.split(percentage=<span class="hljs-number">0.5</span>, align=<span class="hljs-keyword">True</span>)
         row.prop(prefs, <span class="hljs-string">'credentials_username'</span>, text=<span class="hljs-string">''</span>)
         row.prop(prefs, <span class="hljs-string">'credentials_key'</span>, text=<span class="hljs-string">''</span>, icon=<span class="hljs-string">'KEY_HLT'</span>)</code></pre>
   </div>
@@ -1006,15 +1074,13 @@ preferences, yes I know.)</p>
 
   <div class="code">
     <pre><code>        row = get_new_table_row(layout, align=<span class="hljs-keyword">False</span>)
-        row.prop(prefs, <span class="hljs-string">'server_insecure'</span>, text=<span class="hljs-string">'Use HTTP'</span>)
+        row.prop(prefs, <span class="hljs-string">'developer_mode'</span>, toggle=<span class="hljs-keyword">True</span>, text=<span class="hljs-string">'Dev Mode'</span>)
 
+        row = row.row()
         row.operator(<span class="hljs-string">'wm.save_userpref'</span>, text=<span class="hljs-string">'Save Settings'</span>)
 
         <span class="hljs-keyword">if</span> CLIENT.is_connected():
             row.enabled = <span class="hljs-keyword">False</span>
-            
-        row = layout.row()
-        row.prop(prefs, <span class="hljs-string">'developer_mode'</span>)
         
 CLASSES_TO_REGISTER = [
     BlenderfarmConnect,
@@ -1093,7 +1159,7 @@ CLASSES_TO_REGISTER = [
         </aside>
 
         <div class="code">
-          <span class="content page-generation-time">Generated Tue, 11 Apr 2017 19:30:14 GMT</span>
+          <span class="content page-generation-time">Generated Wed, 26 Apr 2017 20:01:26 GMT</span>
         </div>
         
       </section>

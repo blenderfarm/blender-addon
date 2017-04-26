@@ -2,6 +2,8 @@
 
 """Blenderfarm addon for Blender 2.78 and up."""
 
+import math
+
 import bpy # pylint: disable=import-error
 
 from . import blenderfarm
@@ -45,10 +47,14 @@ class BlenderfarmAddonPreferences(bpy.types.AddonPreferences):
         default=44363
     )
 
-    server_insecure = bpy.props.BoolProperty(
-        name='Use HTTP',
-        description='Use HTTP (insecure!) instead of the default HTTPS',
-        default=False
+    server_security = bpy.props.EnumProperty(
+        name='Security',
+        description='',
+        items=[
+            ('https', 'HTTPS', 'Use secure HTTPS connection'),
+            ('http', 'HTTP', 'Use an insecure HTTP connection')
+        ],
+        default='https'
     )
 
     # Blenderfarm user credentials (username/key)
@@ -78,10 +84,19 @@ class BlenderfarmAddonPreferences(bpy.types.AddonPreferences):
     # completed.
 
     node_task_single = bpy.props.BoolProperty(
-        name='Perform single task',
-        description='Disconnect from server after task is complete.',
+        name='Stop when complete',
+        description='Stop processing new tasks after current task is complete.',
         default=False
     )
+
+    node_task_autostart = bpy.props.BoolProperty(
+        name='Autostart on connection',
+        description='Automatically start rendering when connecting to a server',
+        default=False
+    )
+
+    # Developer mode. Shows more information in the "Blenderfarm
+    # Control" panel.
 
     developer_mode = bpy.props.BoolProperty(
         name='Show Developer Information',
@@ -151,11 +166,11 @@ class BlenderfarmConnect(bpy.types.Operator):
         prefs = BlenderfarmAddonPreferences.get(context)
 
         CLIENT.set_host_port(prefs.server_host, prefs.server_port)
-        CLIENT.set_insecure(prefs.server_insecure)
+        CLIENT.set_insecure(prefs.server_security == 'http')
 
         try:
-            CLIENT.connect()
-        except blenderfarm.client.Error as error:
+            CLIENT.connect(prefs.credentials_username, prefs.credentials_key)
+        except blenderfarm.error.Error as error:
             self.report({'ERROR'}, str(error))
             return {'CANCELLED'}
 
@@ -263,7 +278,33 @@ class BlenderfarmControlPanel(bpy.types.Panel):
         box = column.box()
 
         # Server name row
-        self.add_row(box, 'Connected', str(CLIENT.is_connected()))
+        
+        version = CLIENT.get_server_info('version')
+        uptime = CLIENT.get_server_info('uptime')
+
+        if uptime:
+            # pylint: disable=bad-whitespace
+            seconds = math.floor(uptime % 60)
+            minutes = math.floor(uptime / 60)
+            hours   = math.floor(uptime / 60 / 60)
+            days    = math.floor(uptime / 60 / 60 / 24)
+            years   = math.floor(uptime / 60 / 60 / 24 / 365)
+
+            days -= years * 365
+            
+            uptime = str(minutes) + 'm ' + str(seconds) + 's'
+
+            if hours:
+                uptime = str(hours) + 'h ' + uptime
+                
+            if days:
+                uptime = str(days) + 'd ' + uptime
+        
+            if years:
+                uptime = str(years) + 'y ' + uptime
+        
+        self.add_row(box, 'Server Version', version or '<not connected>')
+        self.add_row(box, 'Server Uptime', uptime or '<not connected>')
         self.add_row(box, 'Client ID', prefs.client_id or '<not connected>')
 
         self.draw_task_info(context, column)
@@ -320,7 +361,10 @@ class BlenderfarmNodePanel(bpy.types.Panel):
             if not CLIENT.is_connected():
                 task_buttons.enabled = False
 
-        task_buttons.prop(prefs, 'node_task_single')
+        row = layout.row()
+        
+        row.prop(prefs, 'node_task_single')
+        row.prop(prefs, 'node_task_autostart')
 
 
 class BlenderfarmSettingsPanel(bpy.types.Panel):
@@ -361,30 +405,31 @@ class BlenderfarmSettingsPanel(bpy.types.Panel):
 
         server_row.label('Server:')
 
-        row = server_row.split(percentage=0.6, align=True)
+        row = server_row.split(percentage=0.5, align=True)
         row.prop(prefs, 'server_host', text='')
-        row.prop(prefs, 'server_port', text='')
+        
+        misc_row = row.split(percentage=0.6, align=True)
+        misc_row.prop(prefs, 'server_port', text='')
+        misc_row.prop(prefs, 'server_security', text='')
 
         # ### Credentials row
         credentials_row = get_new_table_row(status_box)
 
         credentials_row.label('Credentials:')
 
-        row = credentials_row.split(percentage=0.6, align=True)
+        row = credentials_row.split(percentage=0.5, align=True)
         row.prop(prefs, 'credentials_username', text='')
         row.prop(prefs, 'credentials_key', text='', icon='KEY_HLT')
 
         # And now for a row at the bottom
         row = get_new_table_row(layout, align=False)
-        row.prop(prefs, 'server_insecure', text='Use HTTP')
+        row.prop(prefs, 'developer_mode', toggle=True, text='Dev Mode')
 
+        row = row.row()
         row.operator('wm.save_userpref', text='Save Settings')
 
         if CLIENT.is_connected():
             row.enabled = False
-            
-        row = layout.row()
-        row.prop(prefs, 'developer_mode')
         
 CLASSES_TO_REGISTER = [
     BlenderfarmConnect,
