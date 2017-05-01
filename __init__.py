@@ -3,8 +3,12 @@
 """Blenderfarm addon for Blender 2.78 and up."""
 
 import math
+import tempfile
+import time
+import os
 
 import bpy # pylint: disable=import-error
+from bpy.app.handlers import persistent
 
 from . import blenderfarm
 
@@ -24,6 +28,56 @@ bl_info = { # pylint: disable=invalid-name
 }
 
 CLIENT = blenderfarm.client.Client()
+
+FIRST_LOAD = True
+
+# # Tasks
+
+def perform_task(context, task):
+    task_type = task.task_info.get_info_type()
+
+    if task_type == 'render':
+        perform_task_render(context, task)
+
+    prefs = BlenderfarmAddonPreferences.get(context)
+    
+    # If continuous rendering is enabled, keep going.
+    if not prefs.node_task_single:
+        bpy.ops.blenderfarm.node_task_perform()
+        
+        
+def perform_task_render(context, task):
+    global CLIENT
+    
+    temp_dir = tempfile.gettempdir()
+
+    ext = 'png'
+
+    print('Rendering frame ' + str(task.task_info.frame))
+    print(task.job.job_id)
+
+    blend_filename = os.path.join(temp_dir, 'blenderfarm-' + task.job.job_id + '.blend')
+    render_filename = os.path.join(temp_dir, 'blenderfarm-' + task.job.job_id + '.' + ext)
+
+    CLIENT.download_job_file(task.job, blend_filename)
+
+    print('opening filename')
+    bpy.ops.wm.open_mainfile(filepath=blend_filename)
+    print('opened file')
+    
+    context.scene.render.filepath = render_filename
+    context.scene.frame_current = task.task_info.frame
+
+    start_time = time.time()
+    
+    bpy.ops.render.render('EXEC_DEFAULT', write_still=True)
+
+    elapsed_seconds = time.time() - start_time
+    
+    CLIENT.upload_render_result(task, render_filename, elapsed_seconds)
+    
+
+# # Blender panels
 
 class BlenderfarmAddonPreferences(bpy.types.AddonPreferences):
     """Addon preferences (persistent across all of Blender.)"""
@@ -57,6 +111,12 @@ class BlenderfarmAddonPreferences(bpy.types.AddonPreferences):
         default='https'
     )
 
+    server_autoconnect = bpy.props.BoolProperty(
+        name='Auto-connect',
+        description='Automatically connect to the server when Blender starts',
+        default=False
+    )
+
     # Blenderfarm user credentials (username/key)
 
     credentials_username = bpy.props.StringProperty(
@@ -86,7 +146,7 @@ class BlenderfarmAddonPreferences(bpy.types.AddonPreferences):
     node_task_single = bpy.props.BoolProperty(
         name='Stop when complete',
         description='Stop processing new tasks after current task is complete.',
-        default=False
+        default=True
     )
 
     node_task_autostart = bpy.props.BoolProperty(
@@ -116,42 +176,6 @@ class BlenderfarmAddonPreferences(bpy.types.AddonPreferences):
 
         return self.server_host + ':' + str(self.server_port)
 
-    # Disable user preferences settings
-    
-    def draw_disabled(self, context):
-        """Draw the preferences panel (this is in Blender's user preferences and the addon info box must be expanded for this to be visible.)"""
-        
-        # Disable pylint warning.
-        _ = context
-
-        layout = self.layout
-
-        # Create a 50/50 horizontal split for `[ server info | user credentials ]`.
-        main_split = layout.split(percentage=0.5)
-
-        # Left column; server info (host/port).
-        server_info = main_split.column(align=True)
-
-        server_info.label(text='Server')
-
-        server_info.prop(self, 'server_host', text='')
-        server_info.prop(self, 'server_port')
-
-        # Right column; user credentials (username/key).
-        credentials = main_split.column(align=True)
-
-        credentials.label(text='Credentials')
-
-        credentials.prop(self, 'credentials_username', text='Username')
-        credentials.prop(self, 'credentials_key', text='Key')
-
-        # Left column (below server info): connection info
-        connection_status = server_info.box().column(align=True)
-
-        connection_status.label(text='Connected: ' + 'FALSE')
-
-        layout.operator('wm.save_userpref')
-
 # # Operators
 
 class BlenderfarmConnect(bpy.types.Operator):
@@ -162,6 +186,8 @@ class BlenderfarmConnect(bpy.types.Operator):
 
     def execute(self, context): # pylint: disable=missing-docstring,no-self-use
         global CLIENT
+
+        context.user_preferences.view.show_splash = False
         
         prefs = BlenderfarmAddonPreferences.get(context)
 
@@ -177,6 +203,10 @@ class BlenderfarmConnect(bpy.types.Operator):
         if not CLIENT.is_connected():
             self.report({'ERROR'}, 'Could not connect to ' + CLIENT.get_host_port())
 
+        # If autostart is enabled, begin to perform tasks.
+        if prefs.node_task_autostart:
+            bpy.ops.blenderfarm.node_task_perform()
+            
         return {'FINISHED'}
 
 
@@ -196,8 +226,7 @@ class BlenderfarmDisconnect(bpy.types.Operator):
         return {'FINISHED'}
 
 class BlenderfarmNodeTaskCancel(bpy.types.Operator):
-    """Cancels all current tasks and calls the `blenderfarm.disconnect`
-operator to prevent new tasks from being connected."""
+    """Cancels all current tasks and reverts Blender back to a new file."""
 
     bl_idname = 'blenderfarm.node_task_cancel'
     bl_label = 'Cancel in-progress tasks'
@@ -205,6 +234,8 @@ operator to prevent new tasks from being connected."""
     def execute(self, context): # pylint: disable=missing-docstring,no-self-use,unused-argument
         bpy.ops.blenderfarm.disconnect()
 
+        # This horrible, horrible hack simply loads a new file,
+        # thereby canceling any in-progress render.
         bpy.ops.wm.read_homefile()
         return {'FINISHED'}
 
@@ -215,6 +246,19 @@ class BlenderfarmNodeTaskPerform(bpy.types.Operator):
     bl_label = 'Fetch and perform task'
 
     def execute(self, context): # pylint: disable=missing-docstring,no-self-use,unused-argument
+        try:
+            task = CLIENT.request_next_task()
+
+            if task:
+                perform_task(context, task)
+            else:
+                print('No tasks to perform!')
+                return {'FINISHED'}
+            
+        except blenderfarm.error.Error as error:
+            self.report({'ERROR'}, str(error))
+            return {'CANCELLED'}
+
         return {'FINISHED'}
 
 # # Properties
@@ -423,7 +467,15 @@ class BlenderfarmSettingsPanel(bpy.types.Panel):
 
         # And now for a row at the bottom
         row = get_new_table_row(layout, align=False)
-        row.prop(prefs, 'developer_mode', toggle=True, text='Dev Mode')
+        row.label('Settings:')
+
+        row = row.row()
+        row.prop(prefs, 'server_autoconnect')
+        row.prop(prefs, 'developer_mode', text='Developer Info')
+
+        # And now for a row at the bottom
+        row = get_new_table_row(layout, align=False)
+        row.label('')
 
         row = row.row()
         row.operator('wm.save_userpref', text='Save Settings')
@@ -445,11 +497,32 @@ CLASSES_TO_REGISTER = [
     BlenderfarmAddonPreferences
 ]
 
+@persistent
+def load_post(dummy):
+    global FIRST_LOAD
+
+    if not FIRST_LOAD:
+        return
+    
+    FIRST_LOAD = False
+    
+    prefs = BlenderfarmAddonPreferences.get(bpy.context)
+
+    if prefs.server_autoconnect:
+        bpy.ops.blenderfarm.connect()
+    
+@persistent
+def render_complete(dummy):
+    print('render complete!')
+
 def register():
     """Registers the Blenderfarm addon."""
 
     for _class in CLASSES_TO_REGISTER:
         bpy.utils.register_class(_class)
+        
+    bpy.app.handlers.load_post.append(load_post)
+    bpy.app.handlers.render_complete.append(render_complete)
 
 def unregister():
     """Unregisters the Blenderfarm Node addon."""

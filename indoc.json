@@ -9,7 +9,7 @@
   "output": "docs",
   "version": "0.1.0",
   "links": {
-    "github": "https://github.com/zlsa/blenderfarm/"
+    "github": "https://github.com/blenderfarm/blender-addon/"
   },
   "owners": "ZLSA Design",
   "languages": {

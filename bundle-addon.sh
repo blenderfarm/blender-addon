@@ -14,9 +14,11 @@ mkdir dist
 
 mkdir render_blenderfarm/
 mkdir render_blenderfarm/blenderfarm/
+mkdir render_blenderfarm/blenderfarm/api/
 
 cp __init__.py render_blenderfarm/
 cp $1/blenderfarm/*.py render_blenderfarm/blenderfarm/
+cp $1/blenderfarm/api/*.py render_blenderfarm/blenderfarm/api/
 
 zip render_blenderfarm.zip render_blenderfarm/ -r
 
